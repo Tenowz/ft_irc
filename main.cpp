@@ -14,7 +14,6 @@
 #include <map>
 #include "client.hpp"
 
-#define PORT 8080
 #define BUFFER_SIZE 1000
 
 int init_serv_socket()
@@ -70,7 +69,7 @@ int main(int argc, char **argv)
 	char							buffer[BUFFER_SIZE];
 	int								new_client_socket, fd_max, read_value;
 
-	if (argc != 3) {
+	if (argc != 3 || atoi(argv[1]) < 1024 || atoi(argv[1]) > 65353) {
 
 		std::cout << "Wrong arguments !" << std::endl;
 		return 1;

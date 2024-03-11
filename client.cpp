@@ -29,6 +29,16 @@ Client  *find_client(std::vector<Client *> client_list, std::string client_name)
 	return NULL;
 }
 
+int	find_client_socket(std::vector<Client *> client_list, Client *client) {
+
+	for (size_t i = 0; i < client_list.size(); i++) {
+
+		if (client_list[i]->get_socket() == client->get_socket())
+			return client->get_socket();
+	}
+	return 0;
+}
+
 int Client::parse_cmd(std::string input, std::map<std::string, Channel*> &channel_list, std::vector<Client *> &client_list)
 {
 	size_t pos = 0;
@@ -130,7 +140,7 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 			channel_list.insert(std::pair<std::string, Channel*>(params[j], new Channel(this, params[j], params[params.size() / 2 + j])));
 			msg = "You have created the channel " + params[j] + " and your password is " + channel_list[params[j]]->get_key() + "\n";
 		}
-		else if (find_client(channel_list[params[j]]->get_client_list(), this->nickname)) {
+		else if (find_client_socket(channel_list[params[j]]->get_client_list(), this)) {
 
 			msg = "You've already joined the channel\n";
 			send(this->socket, msg.c_str(), msg.size(), 0);
@@ -139,7 +149,7 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 		else {
 
 			std::cout << this->nickname << " joined the channel " << params[j] << std::endl;
-			msg = this->nickname + " joined the channel " + params[j];
+			msg = this->nickname + " joined the channel " + params[j] + "\r\n";
 		}
 		channel_list[params[j]]->add_client(this);
 		send(this->socket, msg.c_str(), msg.size(), 0);

@@ -43,4 +43,5 @@ class Client {
         int sendtochannel(Channel *channel, std::string message);
 };
 
+int	    find_client_socket(std::vector<Client *> client_list, Client *client);
 Client  *find_client(std::vector<Client *> client_list, std::string client_name);
