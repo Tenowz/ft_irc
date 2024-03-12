@@ -60,14 +60,12 @@ int	Client::exec_cmd(std::string input, std::map<std::string, Channel*> &channel
 	
 	size_t pos = 0;
 	std::string token;
-	if (cmd != "TOPIC") {
-
-		while ((pos = input.find(' ')) != std::string::npos) {
-			
-			token = input.substr(0, pos);
-			params.push_back(token);
-			input.erase(0, pos + 1);
-		}
+	while ((pos = input.find(' ')) != std::string::npos) {
+		if (input[0] == ':')
+			break ;
+		token = input.substr(0, pos);
+		params.push_back(token);
+		input.erase(0, pos + 1);
 	}
 	params.push_back(input);
 	params.erase(params.begin());
@@ -139,21 +137,31 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 
 			channel_list.insert(std::pair<std::string, Channel*>(params[j], new Channel(this, params[j], params[params.size() / 2 + j])));
 			msg = "You have created the channel " + params[j] + " and your password is " + channel_list[params[j]]->get_key() + "\n";
-		}
-		else if (find_client_socket(channel_list[params[j]]->get_client_list(), this)) {
-
-			msg = "You've already joined the channel\n";
 			send(this->socket, msg.c_str(), msg.size(), 0);
-			return 0;
+		}
+		else if (channel_list.count(params[j]) && params[params.size() / 2 + j] == channel_list[params[j]]->get_key()) {
+
+			if (find_client_socket(channel_list[params[j]]->get_client_list(), this)) {
+			
+				msg = "You've already joined the channel\r\n";
+				send(this->socket, msg.c_str(), msg.size(), 0);
+				return 0;
+			}
+			else {
+
+				std::cout << this->nickname << " joined the channel " << params[j] << std::endl;
+				msg = this->nickname + " joined the channel " + params[j] + "\r\n";
+				send(this->socket, msg.c_str(), msg.size(), 0);
+				sendtochannel(channel_list[params[j]], msg);
+			}
 		}
 		else {
 
-			std::cout << this->nickname << " joined the channel " << params[j] << std::endl;
-			msg = this->nickname + " joined the channel " + params[j] + "\r\n";
+			msg = "Wrong password\r\n";
+			send(this->socket, msg.c_str(), msg.size(), 0);
+			return 0;
 		}
 		channel_list[params[j]]->add_client(this);
-		send(this->socket, msg.c_str(), msg.size(), 0);
-		sendtochannel(channel_list[params[j]], msg);
 	}
 	return 0;
 }
@@ -235,7 +243,16 @@ int	Client::topic(std::vector<std::string> params, std::map<std::string, Channel
 {
 	std::string	msg;
 
-	if (channel_list.count(params[0]) && params.size() == 2 && channel_list[params[0]]->is_op(this)) {
+	if (params.size() == 1 && channel_list.find(params[0]) != channel_list.end()) {
+
+		if (channel_list[params[0]]->getTopic().empty())
+			msg = "No topic set !\r\n";
+		else
+			msg = params[0] + "\'s topic " + channel_list[params[0]]->getTopic() + "\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
+		return 0;
+	}
+	if (params.size() == 2 && channel_list.find(params[0]) != channel_list.end() && params[1][0] == ':' && channel_list[params[0]]->is_op(this)) {
 
 		channel_list[params[0]]->setTopic(params[1]);
 		std::cout << "Channel " << channel_list[params[0]]->get_name() << "\'s topic successfully changed" << std::endl;
@@ -243,8 +260,8 @@ int	Client::topic(std::vector<std::string> params, std::map<std::string, Channel
 		send(this->socket, msg.c_str(), msg.size(), 0);
 		return 0;
 	}
-	std::cout << "Changing " << params[0] << "\'s topic failed" << std::endl;
-	msg = "Unable to change " + params[0] + "\'s topic\r\n";
+	std::cout << "Changing or viewing " << params[0] << "\'s topic failed" << std::endl;
+	msg = "Unable to change or view " + params[0] + "\'s topic\r\n";
 	send(this->socket, msg.c_str(), msg.size(), 0);
 	return 0;
 }
