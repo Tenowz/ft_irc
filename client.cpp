@@ -122,46 +122,71 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 	size_t		i = 0;
 	size_t		j = -1;
 
-	std::vector<std::string>::iterator it;
-	for (it = params.begin(); it != params.end() && ((*it)[0] == '#' || (*it)[0] == '&') ; ++it)
-		++i;
-	if (params.size() % 2 != 0 || i != params.size() / 2) {
+	if (channel_list[params[0]]->getKeyState() == true) {
 
-		msg = "Wrong arguments\n";
-		send(this->socket, msg.c_str(), msg.size(), 0);
-		return 0;
+		for (std::vector<std::string>::iterator it = params.begin(); it != params.end() && ((*it)[0] == '#' || (*it)[0] == '&') ; ++it)
+			++i;
+
+		if (params.size() % 2 != 0 || i != params.size() / 2) {
+
+			msg = "Wrong arguments\n";
+			send(this->socket, msg.c_str(), msg.size(), 0);
+			return 0;
+		}
+	} else if (channel_list[params[0]]->getKeyState() == false) {
+
+		for (std::vector<std::string>::iterator it = params. begin(); it != params.end() && ((*it)[0] == '#' || (*it)[0] == '&'); ++it)
+			i++;
+		
+		if (i != params.size()) {
+
+			msg = "Wrong arguments\n";
+			send(this->socket, msg.c_str(), msg.size(), 0);
+			return 0;
+		}
 	}
 	while (++j < i) {
 
-		if (channel_list.count(params[j]) == 0) {
+		if (channel_list.count(params[j]) == 0 && channel_list[params[0]]->getKeyState() == true) {
 
 			channel_list.insert(std::pair<std::string, Channel*>(params[j], new Channel(this, params[j], params[params.size() / 2 + j])));
 			msg = "You have created the channel " + params[j] + " and your password is " + channel_list[params[j]]->get_key() + "\n";
 			send(this->socket, msg.c_str(), msg.size(), 0);
+			channel_list[params[j]]->add_client(this);
 		}
-		else if (channel_list.count(params[j]) && params[params.size() / 2 + j] == channel_list[params[j]]->get_key()) {
+		else if (channel_list.count(params[j])) {
 
 			if (find_client_socket(channel_list[params[j]]->get_client_list(), this)) {
-			
-				msg = "You've already joined the channel\r\n";
+
+				msg = "You've already joined the channel !\r\n";
 				send(this->socket, msg.c_str(), msg.size(), 0);
 				return 0;
 			}
-			else {
+			if (channel_list[params[0]]->getKeyState() == true && params[params.size() / 2 + j] != channel_list[params[j]]->get_key()) {
 
-				std::cout << this->nickname << " joined the channel " << params[j] << std::endl;
-				msg = this->nickname + " joined the channel " + params[j] + "\r\n";
+				msg = "Wrong password !\r\n";
 				send(this->socket, msg.c_str(), msg.size(), 0);
-				sendtochannel(channel_list[params[j]], msg);
+				return 0;
 			}
-		}
-		else {
+			if (channel_list[params[0]]->getLimitState() == true && channel_list[params[0]]->getLimit() && channel_list[params[0]]->get_client_list().size() >= channel_list[params[0]]->getLimit()) {
 
-			msg = "Wrong password\r\n";
+				msg = "The channel is already full !\r\n";
+				send(this->socket, msg.c_str(), msg.size(), 0);
+				return 0;
+			}
+			if (channel_list[params[0]]->getInviteState() == true && !channel_list[params[0]]->findInvited(this->socket)) {
+
+				msg = "You're not invited !\r\n";
+				send(this->socket, msg.c_str(), msg.size(), 0);
+				return 0;
+			}
+			std::cout << this->nickname << " joined the channel " << params[j] << std::endl;
+			msg = "You've successfully joined the channel !\r\n";
 			send(this->socket, msg.c_str(), msg.size(), 0);
-			return 0;
+			msg = this->nickname + " joined the channel " + params[j] + "\r\n";
+			sendtochannel(channel_list[params[j]], msg);
+			channel_list[params[j]]->add_client(this);
 		}
-		channel_list[params[j]]->add_client(this);
 	}
 	return 0;
 }
@@ -214,28 +239,74 @@ int Client::kick(std::vector<std::string> params, std::map<std::string, Channel*
 
 int Client::mode(std::vector<std::string> params, std::map<std::string, Channel*> &channel_list)
 {
-	if (params.size() < 2)
+	std::string	msg;
+	std::string	sign;
+	std::string	nbArg;
+
+	if (channel_list[params[0]]->is_op(this) == false) {
+
+		msg = "You're not allowed to modificate !\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
 		return 0;
-	std::string channel_name = params[0];
-	std::string option = params[1];
+	}
+	if (channel_list.find(params[0]) == channel_list.end()) {
 
-	if (option == "+i")
-		channel_list[channel_name]->invite_only(true);
-	else if (option == "-i")
-		channel_list[channel_name]->invite_only(false);
-	/*else if (option == "+t")
-		command
-	else if (option == "-t")
-		command
-	else if (option == "+k")
-		command
-	else if (option == "-k")
-		command
-	else if (option == "+o")
-		command
-	else if (option == "-o")
-		command*/
+		msg = "Channel does not exist !\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
+	}
+	else if (channel_list.find(params[0]) != channel_list.end()) {
 
+		if (params[2][0] == '-' || params[2][0] == '+') {
+
+			if (params[2][0] == '-')
+				sign = '-';
+			else
+				sign = '+';
+			for (size_t i = 1; i < params[2].size(); i++) {
+
+				if (params[2][i] == 'i' && params[2][0] == '-')
+					channel_list[params[0]]->invite_only(false);
+				else if (params[2][i] == 'i' && params[2][0] == '+')
+					channel_list[params[0]]->invite_only(true);
+				else if (params[2][i] == 't' && params[2][0] == '-')
+					channel_list[params[0]]->topicOpOnly(false);
+				else if (params[2][i] == 't' && params[2][0] == '+')
+					channel_list[params[0]]->topicOpOnly(true);
+				else if (params[2][i] == 'k' && params[2][0] == '-')
+					channel_list[params[0]]->keyOnly(false);
+				else if (params[2][i] == 'k' && params[2][0] == '+')
+					channel_list[params[0]]->keyOnly(true);
+				else if (params[2][i] == 'o' && params[2][0] == '-')
+					nbArg += 'o';
+				else if (params[2][i] == 'o' && params[2][0] == '+')
+					nbArg += 'o';
+				else if (params[2][i] == 'l' && params[2][0] == '-')
+					nbArg += 'l';
+				else if (params[2][i] == 'l' && params[2][0] == '-')
+					nbArg += 'l';
+			}
+		}
+		size_t	o = nbArg.find('o');
+		size_t	l = nbArg.find('l');
+		if (o == std::string::npos && l == std::string::npos)
+			return 0;
+		if (o < l) {
+
+			channel_list[params[0]]->getOpList().push_back(channel_list[params[0]]->find_client(params[3]));
+			if (l != std::string::npos) {
+
+				(sign[0] == '-') ? channel_list[params[0]]->limitOnly(false) : channel_list[params[0]]->limitOnly(true);
+				channel_list[params[0]]->setLimit(params[3], this->socket);
+			}
+		}
+		else if (l < o) {
+
+			(sign[0] == '-') ? channel_list[params[0]]->limitOnly(false) : channel_list[params[0]]->limitOnly(true);
+			channel_list[params[0]]->setLimit(params[3], this->socket);
+			if (o != std::string::npos)
+				channel_list[params[0]]->getOpList().push_back(channel_list[params[0]]->find_client(params[3]));
+		}
+	}
 	return 0;
 }
 
@@ -252,8 +323,14 @@ int	Client::topic(std::vector<std::string> params, std::map<std::string, Channel
 		send(this->socket, msg.c_str(), msg.size(), 0);
 		return 0;
 	}
-	if (params.size() == 2 && channel_list.find(params[0]) != channel_list.end() && params[1][0] == ':' && channel_list[params[0]]->is_op(this)) {
+	if (params.size() == 2 && channel_list.find(params[0]) != channel_list.end() && params[1][0] == ':') {
 
+		if (channel_list[params[0]]->getTopicState() == true && channel_list[params[0]]->is_op(this) == false) {
+
+			msg = "You're not allowed to change this channel's topic !\r\n";
+			send(this->socket, msg.c_str(), msg.size(), 0);
+			return 0;
+		}
 		channel_list[params[0]]->setTopic(params[1]);
 		std::cout << "Channel " << channel_list[params[0]]->get_name() << "\'s topic successfully changed" << std::endl;
 		msg = channel_list[params[0]]->get_name() + "\'s new topic is " + channel_list[params[0]]->getTopic() + "\r\n";
@@ -278,26 +355,31 @@ int Client::leave_channels(std::map<std::string, Channel*> &channel_list)
 
 int Client::invite(std::vector<std::string> params, std::map<std::string, Channel*> &channel_list, std::vector<Client *> &client_list)
 {
+	std::string message;
 	std::string invited_name = params[0];
 	std::string channel_name = params[1];
 
 	if (channel_list.count(channel_name) == 0) {
 
-		std::cout << "INVITE ERROR : channel not found" << std::endl;
+		message = "INVITE ERROR : channel not found\r\n";
+		send(this->socket, message.c_str(), message.size(), 0);
 		return 0;
 	}
 	if (channel_list[channel_name]->is_op(this) == false) {
 
-		std::cout << "INVITE ERROR : user is not allowed to kick" << std::endl;
+		message = "INVITE ERROR : user is not allowed to invite\r\n";
+		send(this->socket, message.c_str(), message.size(), 0);
 		return 0;
 	}
 	Client *invited = find_client(client_list, invited_name);
 	if (!invited) {
 
-		std::cout << "INVITE ERROR : user not found in channel" << std::endl;
+		message = "INVITE ERROR : user not found in channel\r\n";
+		send(this->socket, message.c_str(), message.size(), 0);
 		return 0;
 	}
-	std::string message = ":" + this->nickname + " INVITE " + invited_name + ' ' + channel_name + "\r\n";
+	channel_list[channel_name]->getInviteList().push_back(invited);
+	message = this->nickname + " INVITE " + invited_name + ' ' + channel_name + "\r\n";
 	send(invited->get_socket(), message.c_str(), message.size(), 0);
 	sendtochannel(channel_list[channel_name], message);
 	return 0;
@@ -305,9 +387,16 @@ int Client::invite(std::vector<std::string> params, std::map<std::string, Channe
 
 int Client::privmsg(std::vector<std::string> params, std::map<std::string, Channel*> &channel_list)
 {
+	std::string	msg;
 	std::string channel_name = params[0];
 	std::string message = params[1];
 	
+	if (channel_list.count(channel_name) == 0) {
+
+		msg = "Channel not found !\r\n";
+		send(this->socket, message.c_str(), message.size(), 0);
+		return 0;
+	}
 	message = ":" + this->nickname + " PRIVMSG " + channel_name + " :" + message + "\r\n";
 	sendtochannel(channel_list[channel_name], message);
 	return 0;

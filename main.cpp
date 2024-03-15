@@ -147,13 +147,14 @@ int main(int argc, char **argv)
 					buffer[read_value - 1] = '\0';
 					show_caracters(buffer, (*it)->get_username());
 					(*it)->parse_cmd(buffer, channel_list, client_list);
-					if (strncmp(buffer, "QUIT SERVER", 12) == 0)
+					if (strncmp(buffer, "QUIT", 5) == 0)
 					{
 						std::cout << "Client from IP " << inet_ntoa(addr.sin_addr) << " and PORT N°" << ntohs(addr.sin_port) << " has been removed" << std::endl;
 						FD_CLR((*it)->get_socket(), &read_fds);
 						close((*it)->get_socket());
 						delete *it;
 						it = client_list.erase(it);
+						//leave all channels
 					}
 				}
 			}
