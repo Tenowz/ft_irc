@@ -16,7 +16,7 @@ Client::Client(int socket_fd)
 
 Client::~Client()
 {
-	std::cout << "client destructor called" << std::endl;
+	std::cout << "Client destructor called" << std::endl;
 }
 
 Client  *find_client(std::vector<Client *> client_list, std::string client_name)
@@ -122,6 +122,12 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 	size_t		i = 0;
 	size_t		j = -1;
 
+	if (channel_list.find(params[0]) == channel_list.end()) {
+
+		msg = "Channel does not exist !\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
+		return 0;
+	}
 	if (channel_list[params[0]]->getKeyState() == true) {
 
 		for (std::vector<std::string>::iterator it = params.begin(); it != params.end() && ((*it)[0] == '#' || (*it)[0] == '&') ; ++it)
@@ -243,16 +249,17 @@ int Client::mode(std::vector<std::string> params, std::map<std::string, Channel*
 	std::string	sign;
 	std::string	nbArg;
 
+	if (channel_list.find(params[0]) == channel_list.end()) {
+
+		msg = "Channel does not exist !\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
+		return 0;
+	}
 	if (channel_list[params[0]]->is_op(this) == false) {
 
 		msg = "You're not allowed to modificate !\r\n";
 		send(this->socket, msg.c_str(), msg.size(), 0);
 		return 0;
-	}
-	if (channel_list.find(params[0]) == channel_list.end()) {
-
-		msg = "Channel does not exist !\r\n";
-		send(this->socket, msg.c_str(), msg.size(), 0);
 	}
 	else if (channel_list.find(params[0]) != channel_list.end()) {
 
@@ -346,10 +353,10 @@ int	Client::topic(std::vector<std::string> params, std::map<std::string, Channel
 int Client::leave_channels(std::map<std::string, Channel*> &channel_list)
 {
 	std::set<std::string>::iterator it;
+
 	for (it = this->channels.begin(); it != this->channels.end(); it++)
-	{
 		channel_list[*it]->remove_client(this);
-	}
+
 	return 0;
 }
 
