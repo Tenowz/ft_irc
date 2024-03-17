@@ -7,23 +7,28 @@ Client::Client()
 	nickname = "";
 }
 
-Client::Client(int socket_fd)
-{
-	socket = socket_fd;
-	username = "";
-	nickname = "";
-}
+Client::Client(int socket_fd, std::string username, std::string nickname) : socket(socket_fd), username(username), nickname(nickname) {}
 
 Client::~Client()
 {
 	std::cout << "Client destructor called" << std::endl;
 }
 
-Client  *find_client(std::vector<Client *> client_list, std::string client_name)
+Client  *findUsername(std::vector<Client *> client_list, std::string username)
 {
 	for (size_t i = 0; i < client_list.size(); i++)
 	{
-		if (client_list[i]->get_nickname() == client_name)
+		if (client_list[i]->get_username() == username)
+			return (client_list[i]);
+	}
+	return NULL;
+}
+
+Client  *findNickname(std::vector<Client *> client_list, std::string nickname)
+{
+	for (size_t i = 0; i < client_list.size(); i++)
+	{
+		if (client_list[i]->get_nickname() == nickname)
 			return (client_list[i]);
 	}
 	return NULL;
@@ -55,12 +60,12 @@ int Client::parse_cmd(std::string input, std::map<std::string, Channel*> &channe
 
 int	Client::exec_cmd(std::string input, std::map<std::string, Channel*> &channel_list, std::vector<Client *> &client_list)
 {
-	std::string cmd = input.substr(0, input.find(' '));
+	std::string cmd = input.substr(0, input.find_first_of(" \t"));
 	std::vector<std::string> params;
 	
 	size_t pos = 0;
 	std::string token;
-	while ((pos = input.find(' ')) != std::string::npos) {
+	while ((pos = input.find_first_of(" \t")) != std::string::npos) {
 		if (input[0] == ':')
 			break ;
 		token = input.substr(0, pos);
@@ -73,11 +78,11 @@ int	Client::exec_cmd(std::string input, std::map<std::string, Channel*> &channel
 	if (cmd == "JOIN")
 		return (this->join(params, channel_list));
 	else if (cmd == "NICK")
-		return (this->nick(params[0]));
+		return (this->nick(params[0], client_list));
 	else if (cmd == "USER")
-		return (this->user(params[0]));
+		return (this->user(params[0], client_list));
 	else if (cmd == "PRIVMSG")
-		return (this->privmsg(params, channel_list));
+		return (this->privmsg(params, channel_list, client_list));
 	else if (cmd == "PART")
 		return (this->part(params, channel_list));
 	else if (cmd == "QUIT")
@@ -96,23 +101,39 @@ int	Client::exec_cmd(std::string input, std::map<std::string, Channel*> &channel
 	return (0);
 }
 
-int Client::nick(std::string params)
+int Client::nick(std::string params, std::vector<Client *> &client_list)
 {
+	std::string	msg;
+
+	if (params.empty() || !params[0] || params.find_first_of(" \t\n\v\f\r") != std::string::npos || params == "NICK" || findNickname(client_list, params)) {
+
+		msg = "Invalid nickname !\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
+		return 0;
+	}
 	int i = std::min(params.find(' '), params.find('\r'));
 	this->nickname = params.substr(0, i);
-
-	std::cout << "set nickname to " << this->nickname << "|" << std::endl;
-
+	std::cout << this->nickname << " nickname's now set to " << params << std::endl;
+	msg = params + " is your new nickname\r\n";
+	send(this->socket, msg.c_str(), msg.size(), 0);
 	return 0;
 }
 
-int Client::user(std::string params)
+int Client::user(std::string params, std::vector<Client *> &client_list)
 {
+	std::string	msg;
+
+	if (params.empty() || !params[0] || params.find_first_of(" \t\n\v\f\r") != std::string::npos || params == "USER" || findUsername(client_list, params)) {
+
+		msg = "Invalid username !\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
+		return 0;
+	}
 	int i = std::min(params.find(' '), params.find('\r'));
 	this->username = params.substr(0, i);
-
-	std::cout << "set username to " << this->username << "|" << std::endl;
-
+	std::cout << this->username << " username's now set to " << params << std::endl;
+	msg = params + " is your new username\r\n";
+	send(this->socket, msg.c_str(), msg.size(), 0);
 	return 0;
 }
 
@@ -121,41 +142,23 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 	std::string msg;
 	size_t		i = 0;
 	size_t		j = -1;
+	size_t		key = 0;
 
-	if (channel_list.find(params[0]) == channel_list.end()) {
-
-		msg = "Channel does not exist !\r\n";
-		send(this->socket, msg.c_str(), msg.size(), 0);
-		return 0;
-	}
-	if (channel_list[params[0]]->getKeyState() == true) {
-
-		for (std::vector<std::string>::iterator it = params.begin(); it != params.end() && ((*it)[0] == '#' || (*it)[0] == '&') ; ++it)
-			++i;
-
-		if (params.size() % 2 != 0 || i != params.size() / 2) {
-
-			msg = "Wrong arguments\n";
-			send(this->socket, msg.c_str(), msg.size(), 0);
-			return 0;
-		}
-	} else if (channel_list[params[0]]->getKeyState() == false) {
-
-		for (std::vector<std::string>::iterator it = params. begin(); it != params.end() && ((*it)[0] == '#' || (*it)[0] == '&'); ++it)
-			i++;
-		
-		if (i != params.size()) {
-
-			msg = "Wrong arguments\n";
-			send(this->socket, msg.c_str(), msg.size(), 0);
-			return 0;
-		}
-	}
+	for (std::vector<std::string>::iterator it = params.begin(); it != params.end() && ((*it)[0] == '#' || (*it)[0] == '&'); ++it)
+		i++;
 	while (++j < i) {
 
-		if (channel_list.count(params[j]) == 0 && channel_list[params[0]]->getKeyState() == true) {
+		if (channel_list.count(params[j]) == 0) {
 
-			channel_list.insert(std::pair<std::string, Channel*>(params[j], new Channel(this, params[j], params[params.size() / 2 + j])));
+			if (i + key >= params.size() || params[i + key].empty() || !params[i + key][0] || isEven(params)) {
+
+				std::cout << "Channel creation attempt failed" << std::endl;
+				msg = "Password required !\r\n";
+				send(this->socket, msg.c_str(), msg.size(), 0);
+				return 0;
+			}
+			std::cout << "2" << std::endl;
+			channel_list.insert(std::pair<std::string, Channel*>(params[j], new Channel(this, params[j], params[i + key++])));
 			msg = "You have created the channel " + params[j] + " and your password is " + channel_list[params[j]]->get_key() + "\n";
 			send(this->socket, msg.c_str(), msg.size(), 0);
 			channel_list[params[j]]->add_client(this);
@@ -164,30 +167,32 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 
 			if (find_client_socket(channel_list[params[j]]->get_client_list(), this)) {
 
-				msg = "You've already joined the channel !\r\n";
+				msg = "You have already joined the channel !\r\n";
 				send(this->socket, msg.c_str(), msg.size(), 0);
-				return 0;
+				continue;
 			}
-			if (channel_list[params[0]]->getKeyState() == true && params[params.size() / 2 + j] != channel_list[params[j]]->get_key()) {
+			if (channel_list[params[j]]->getKeyState() == true && params[i + key] != channel_list[params[j]]->get_key()) {
 
 				msg = "Wrong password !\r\n";
 				send(this->socket, msg.c_str(), msg.size(), 0);
-				return 0;
+				continue;
 			}
-			if (channel_list[params[0]]->getLimitState() == true && channel_list[params[0]]->getLimit() && channel_list[params[0]]->get_client_list().size() >= channel_list[params[0]]->getLimit()) {
+			else
+				key++;
+			if (channel_list[params[j]]->getLimitState() == true && channel_list[params[j]]->getLimit() && channel_list[params[0]]->get_client_list().size() >= channel_list[params[0]]->getLimit()) {
 
 				msg = "The channel is already full !\r\n";
 				send(this->socket, msg.c_str(), msg.size(), 0);
-				return 0;
+				continue;
 			}
-			if (channel_list[params[0]]->getInviteState() == true && !channel_list[params[0]]->findInvited(this->socket)) {
+			if (channel_list[params[j]]->getInviteState() == true && !channel_list[params[j]]->findInvited(this->socket)) {
 
-				msg = "You're not invited !\r\n";
+				msg = "You are not invited !\r\n";
 				send(this->socket, msg.c_str(), msg.size(), 0);
-				return 0;
+				continue;
 			}
 			std::cout << this->nickname << " joined the channel " << params[j] << std::endl;
-			msg = "You've successfully joined the channel !\r\n";
+			msg = "You have successfully joined the channel !\r\n";
 			send(this->socket, msg.c_str(), msg.size(), 0);
 			msg = this->nickname + " joined the channel " + params[j] + "\r\n";
 			sendtochannel(channel_list[params[j]], msg);
@@ -378,7 +383,7 @@ int Client::invite(std::vector<std::string> params, std::map<std::string, Channe
 		send(this->socket, message.c_str(), message.size(), 0);
 		return 0;
 	}
-	Client *invited = find_client(client_list, invited_name);
+	Client *invited = findNickname(client_list, invited_name);
 	if (!invited) {
 
 		message = "INVITE ERROR : user not found in channel\r\n";
@@ -392,20 +397,40 @@ int Client::invite(std::vector<std::string> params, std::map<std::string, Channe
 	return 0;
 }
 
-int Client::privmsg(std::vector<std::string> params, std::map<std::string, Channel*> &channel_list)
+int Client::privmsg(std::vector<std::string> params, std::map<std::string, Channel*> &channel_list, std::vector<Client *> &client_list)
 {
 	std::string	msg;
-	std::string channel_name = params[0];
+	std::string name = params[0];
 	std::string message = params[1];
 	
-	if (channel_list.count(channel_name) == 0) {
+	if (name.empty() || message.empty()) {
 
-		msg = "Channel not found !\r\n";
-		send(this->socket, message.c_str(), message.size(), 0);
+		msg = "Invalid arguments !\r\n";
+		send(this->socket, msg.c_str(), msg.size(), 0);
 		return 0;
 	}
-	message = ":" + this->nickname + " PRIVMSG " + channel_name + " :" + message + "\r\n";
-	sendtochannel(channel_list[channel_name], message);
+	if (name[0] == '#' || name[0] == '&') {
+
+		if (channel_list.count(name) == 0) {
+
+			msg = "Channel not found !\r\n";
+			send(this->socket, message.c_str(), message.size(), 0);
+			return 0;
+		}
+		message = ":" + this->nickname + " PRIVMSG " + name + " :" + message + "\r\n";
+		sendtochannel(channel_list[name], message);
+	}
+	if (name[0] != '#' && name[0] != '&') {
+		
+		if (!findNickname(client_list, name)) {
+
+			msg = "Client not found !\r\n";
+			send(this->socket, msg.c_str(), msg.size(), 0);
+			return 0;
+		}
+		message = ":" + this->nickname + " PRIVMSG " + name + " :" + message + "\r\n";
+		send(findNickname(client_list, name)->socket, message.c_str(), message.size(), 0);
+	}
 	return 0;
 }
 
@@ -423,4 +448,14 @@ int Client::sendtochannel(Channel *channel, std::string message)
 		}
 	}
 	return 0;
+}
+
+bool	isEven(std::vector<std::string> params) {
+
+	for (std::vector<std::string>::const_iterator it = liste.begin(); it != liste.end(); ++it) {
+        if (*it == recherche) {
+            return true; // La chaîne existe dans le vecteur
+        }
+    }
+    return false;
 }

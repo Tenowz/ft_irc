@@ -60,6 +60,8 @@ void	show_caracters(std::string str, std::string clientName)
 int main(int argc, char **argv)
 {
 	struct sockaddr_in				addr;
+	std::string						user;
+	std::string						nick;
 	std::string						pass_msg;
 	fd_set							read_fds;
 	socklen_t						addr_len;
@@ -125,8 +127,8 @@ int main(int argc, char **argv)
 
 				read_value = read(new_client_socket, buffer, BUFFER_SIZE);
 				buffer[read_value - 1] = '\0';
-				std::string	user(buffer);
-				if (read_value > 0 && user.find_first_of(" \t\n\v\f\r") == std::string::npos && user.empty() == false && user[0])
+				user = buffer;
+				if (read_value > 0 && user.find_first_of(" \t\n\v\f\r") == std::string::npos && user.empty() == false && user[0] && !findUsername(client_list, user))
 					break ;
 				else {
 
@@ -140,8 +142,8 @@ int main(int argc, char **argv)
 
 				read_value = read(new_client_socket, buffer, BUFFER_SIZE);
 				buffer[read_value - 1] = '\0';
-				std::string	nick(buffer);
-				if (read_value > 0 && nick.find_first_of(" \t\n\v\f\r") == std::string::npos && nick.empty() == false && nick[0])
+				nick = buffer;
+				if (read_value > 0 && nick.find_first_of(" \t\n\v\f\r") == std::string::npos && nick.empty() == false && nick[0] && !findNickname(client_list, nick))
 					break ;
 				else {
 
@@ -150,7 +152,8 @@ int main(int argc, char **argv)
 				}
 			}
 			std::cout << "Client successfully joined the server" << std::endl;
-			newClient = new Client(new_client_socket);
+			newClient = new Client(new_client_socket, user, nick);
+			std::cout << "New client username : " << newClient->get_username() << "\nNew client nickname : " << newClient->get_nickname() << std::endl;
 			client_list.push_back(newClient);
 			pass_msg = "You have successfully joined the server !\n";
 			send(new_client_socket, pass_msg.c_str(), pass_msg.size(), 0);
