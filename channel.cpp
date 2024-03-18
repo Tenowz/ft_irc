@@ -42,6 +42,16 @@ Client	*Channel::findInvited(int const socket) {
 	return NULL;
 }
 
+void	Channel::addInvite(Client *client)
+{
+	for (size_t i = 0; i < this->invit_list.size(); i++)
+	{
+		if (this->invit_list[i] == client)
+			return ;
+	}
+	this->invit_list.push_back(client);
+}
+
 bool    Channel::is_op(Client *client)
 {
 	if (client == this->admin)
@@ -54,27 +64,38 @@ bool    Channel::is_op(Client *client)
 	return false;
 }
 
-void Channel::add_client(Client *client)
+void Channel::add_client(Client *client, std::vector<Client*> &list)
 {
-	for (size_t i = 0; i < this->client_list.size(); i++)
+	if (!client || list.empty()) {
+
+		std::cout << "Client not found !" << std::endl;
+		return ;
+	}
+	for (size_t i = 0; i < list.size(); i++)
 	{
-		if (this->client_list[i] == client)
+		if (list[i] == client)
 			return ;
 	}
-	this->client_list.push_back(client);
+	list.push_back(client);
 }
 
-void Channel::remove_client(Client *client)
+void Channel::remove_client(Client *client, std::vector<Client*> &list)
 {
+	if (!client || list.empty()) {
+
+		std::cout << "Client not found !" << std::endl;
+		return ;
+	}
 	std::vector<Client *>::iterator it;
-	for (it = client_list.begin(); it != client_list.end(); it++)
+	for (it = list.begin(); it != list.end(); it++)
 	{
 		if (*it == client) {
-			client_list.erase(it);
+			list.erase(it);
 			std::cout << client->get_nickname() << " removed from " << this->name << std::endl;
 			return ;
 		}
 	}
+	std::cout << "Client not found !" << std::endl;
 }
 
 void	Channel::setLimit(std::string limit, int socket) {
