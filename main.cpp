@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <csignal>
 #include "client.hpp"
 
 #define BUFFER_SIZE 1000
@@ -60,6 +61,7 @@ void	show_caracters(std::string str, std::string clientName)
 int main(int argc, char **argv)
 {
 	struct sockaddr_in				addr;
+	std::string						buff;
 	std::string						user;
 	std::string						nick;
 	std::string						pass_msg;
@@ -100,55 +102,73 @@ int main(int argc, char **argv)
 		}
 		select(fd_max + 1 , &read_fds , NULL , NULL , NULL);
 		if (FD_ISSET(serv_socket, &read_fds)) {
-			
+
 			if ((new_client_socket = accept(serv_socket, (struct sockaddr *)&addr, &addr_len)) < 0) {
 				perror("accept");
 				return (-1);
 			}
 			std::cout << "New connection attempt from IP " << inet_ntoa(addr.sin_addr) << " and PORT N°" << ntohs(addr.sin_port) << std::endl;
+			buff.clear();
 			pass_msg = "Enter the server password : ";
 			send(new_client_socket, pass_msg.c_str(), pass_msg.size(), 0);
 			while (1) {
 
 				read_value = read(new_client_socket, buffer, BUFFER_SIZE);
-				buffer[read_value - 1] = '\0';
-				if (read_value > 0 && strcmp(buffer, argv[2]) == 0)
+				buffer[read_value] = '\0';
+				buff += buffer;
+				if (buff.find('\r') == std::string::npos && buff.find('\n') == std::string::npos)
+					continue;
+				buff.erase(buff.find('\n'), 1);
+				if (read_value > 0 && strcmp(buff.c_str(), argv[2]) == 0)
 					break ;
 				else {
 
 					std::cout << "Connection attempt failed" << std::endl;
 					pass_msg = "Wrong password !\nPlease try again : ";
 					send(new_client_socket, pass_msg.c_str(), pass_msg.size(), 0);
+					buff.clear();
 				}
 			}
+			buff.clear();
 			pass_msg = "Enter a username : ";
 			send(new_client_socket, pass_msg.c_str(), pass_msg.size(), 0);
 			while (1) {
 
 				read_value = read(new_client_socket, buffer, BUFFER_SIZE);
-				buffer[read_value - 1] = '\0';
-				user = buffer;
+				buffer[read_value] = '\0';
+				buff += buffer;
+				if (buff.find('\r') == std::string::npos && buff.find('\n') == std::string::npos)
+					continue;
+				buff.erase(buff.find('\n'), 1);
+				user = buff;
 				if (read_value > 0 && user.find_first_of(" \t\n\v\f\r") == std::string::npos && user.empty() == false && user[0] && !findUsername(client_list, user))
 					break ;
 				else {
 
 					pass_msg = "Invalid username !\nPlease try again : ";
 					send(new_client_socket, pass_msg.c_str(), pass_msg.size(), 0);
+					buff.clear();
 				}
 			}
+			buff.clear();
 			pass_msg = "Enter a nickname : ";
 			send(new_client_socket, pass_msg.c_str(), pass_msg.size(), 0);
 			while (1) {
 
 				read_value = read(new_client_socket, buffer, BUFFER_SIZE);
-				buffer[read_value - 1] = '\0';
-				nick = buffer;
+				buffer[read_value] = '\0';
+				buff += buffer;
+				if (buff.find('\r') == std::string::npos && buff.find('\n') == std::string::npos)
+					continue;
+				buff.erase(buff.find('\n'), 1);
+				nick = buff;
 				if (read_value > 0 && nick.find_first_of(" \t\n\v\f\r") == std::string::npos && nick.empty() == false && nick[0] && !findNickname(client_list, nick))
 					break ;
 				else {
 
 					pass_msg = "Invalid nickname !\nPlease try again : ";
 					send(new_client_socket, pass_msg.c_str(), pass_msg.size(), 0);
+					buff.clear();
 				}
 			}
 			std::cout << "Client successfully joined the server" << std::endl;
@@ -160,9 +180,20 @@ int main(int argc, char **argv)
 		}
 		for (std::vector<Client *>::iterator it = client_list.begin(); it < client_list.end(); it++) {
 
+			buff.clear();
 			if (FD_ISSET((*it)->get_socket(), &read_fds)) {
 
-				read_value = read((*it)->get_socket(), buffer, BUFFER_SIZE);
+				while (1) {
+					
+					read_value = read((*it)->get_socket(), buffer, BUFFER_SIZE);
+					buffer[read_value] = '\0';
+					buff += buffer;
+					if (buff.find('\r') == std::string::npos && buff.find('\n') == std::string::npos)
+						continue;
+					else
+						break ;
+				}
+				buff.erase(buff.find('\n'), 1);
 				if (read_value < 0)
 					std::cout << "read error" << std::endl;
 				else if (read_value == 0) {
@@ -177,10 +208,8 @@ int main(int argc, char **argv)
 				}
 				else {
 
-					buffer[read_value - 1] = '\0';
-					//show_caracters(buffer, (*it)->get_username());
-					(*it)->parse_cmd(buffer, channel_list, client_list);
-					if (strncmp(buffer, "QUIT", 5) == 0)
+					(*it)->parse_cmd(buff, channel_list, client_list);
+					if (strncmp(buff.c_str(), "QUIT", 5) == 0)
 					{
 						std::cout << "Client from IP " << inet_ntoa(addr.sin_addr) << " and PORT N°" << ntohs(addr.sin_port) << " has been removed" << std::endl;
 						FD_CLR((*it)->get_socket(), &read_fds);
