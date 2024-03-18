@@ -153,11 +153,10 @@ int Client::join(std::vector<std::string> params, std::map<std::string, Channel*
 			if (i + key >= params.size() || params[i + key].empty() || !params[i + key][0] || isEven(params)) {
 
 				std::cout << "Channel creation attempt failed" << std::endl;
-				msg = "Password required !\r\n";
+				msg = "Invalid arguments !\r\n";
 				send(this->socket, msg.c_str(), msg.size(), 0);
 				return 0;
 			}
-			std::cout << "2" << std::endl;
 			channel_list.insert(std::pair<std::string, Channel*>(params[j], new Channel(this, params[j], params[i + key++])));
 			msg = "You have created the channel " + params[j] + " and your password is " + channel_list[params[j]]->get_key() + "\n";
 			send(this->socket, msg.c_str(), msg.size(), 0);
@@ -238,11 +237,9 @@ int Client::kick(std::vector<std::string> params, std::map<std::string, Channel*
 		std::cout << "KICK ERROR : user not found in channel" << std::endl;
 		return 0;
 	}
-
 	std::string message = ":" + this->nickname + " KICK " + channel_name + ' ' + kicked_name + "\r\n";
 	send(this->socket, message.c_str(), message.size(), 0);
 	sendtochannel(channel_list[channel_name], message);
-
 	channel_list[channel_name]->remove_client(kicked);
 
 	return 0;
@@ -254,9 +251,9 @@ int Client::mode(std::vector<std::string> params, std::map<std::string, Channel*
 	std::string	sign;
 	std::string	nbArg;
 
-	if (channel_list.find(params[0]) == channel_list.end()) {
+	if (params.size() < 2 || channel_list.find(params[0]) == channel_list.end()) {
 
-		msg = "Channel does not exist !\r\n";
+		msg = "Invalid arguments !\r\n";
 		send(this->socket, msg.c_str(), msg.size(), 0);
 		return 0;
 	}
@@ -268,33 +265,37 @@ int Client::mode(std::vector<std::string> params, std::map<std::string, Channel*
 	}
 	else if (channel_list.find(params[0]) != channel_list.end()) {
 
-		if (params[2][0] == '-' || params[2][0] == '+') {
+		if (params[1][0] == '-' || params[1][0] == '+') {
 
-			if (params[2][0] == '-')
+			if (params[1][0] == '-')
 				sign = '-';
 			else
 				sign = '+';
-			for (size_t i = 1; i < params[2].size(); i++) {
+			for (size_t i = 1; i < params[1].size(); i++) {
 
-				if (params[2][i] == 'i' && params[2][0] == '-')
+				std::cout << "sign : " << params[1][0] << std::endl << "flag : " << params[1][i] << std::endl;
+				if (params[1][i] == 'i' && params[1][0] == '-')
 					channel_list[params[0]]->invite_only(false);
-				else if (params[2][i] == 'i' && params[2][0] == '+')
+				else if (params[1][i] == 'i' && params[1][0] == '+') {
+
+					std::cout << "Channel invited only" << std::endl;
 					channel_list[params[0]]->invite_only(true);
-				else if (params[2][i] == 't' && params[2][0] == '-')
+				}
+				else if (params[1][i] == 't' && params[1][0] == '-')
 					channel_list[params[0]]->topicOpOnly(false);
-				else if (params[2][i] == 't' && params[2][0] == '+')
+				else if (params[1][i] == 't' && params[1][0] == '+')
 					channel_list[params[0]]->topicOpOnly(true);
-				else if (params[2][i] == 'k' && params[2][0] == '-')
+				else if (params[1][i] == 'k' && params[1][0] == '-')
 					channel_list[params[0]]->keyOnly(false);
-				else if (params[2][i] == 'k' && params[2][0] == '+')
+				else if (params[1][i] == 'k' && params[1][0] == '+')
 					channel_list[params[0]]->keyOnly(true);
-				else if (params[2][i] == 'o' && params[2][0] == '-')
+				else if (params[1][i] == 'o' && params[1][0] == '-')
 					nbArg += 'o';
-				else if (params[2][i] == 'o' && params[2][0] == '+')
+				else if (params[1][i] == 'o' && params[1][0] == '+')
 					nbArg += 'o';
-				else if (params[2][i] == 'l' && params[2][0] == '-')
+				else if (params[1][i] == 'l' && params[1][0] == '-')
 					nbArg += 'l';
-				else if (params[2][i] == 'l' && params[2][0] == '-')
+				else if (params[1][i] == 'l' && params[1][0] == '-')
 					nbArg += 'l';
 			}
 		}
@@ -304,7 +305,17 @@ int Client::mode(std::vector<std::string> params, std::map<std::string, Channel*
 			return 0;
 		if (o < l) {
 
-			channel_list[params[0]]->getOpList().push_back(channel_list[params[0]]->find_client(params[3]));
+			std::cout << "1" << std::endl;
+			if (params.size() < 3 || !channel_list[params[0]]->find_client(params[2])) {
+
+				msg = "Client not found !\r\n";
+				send(this->socket, msg.c_str(), msg.size(), 0);
+				return 0;
+			}
+			channel_list[params[0]]->getOpList().push_back(channel_list[params[0]]->find_client(params[2]));
+			msg = this->nickname + " set " + channel_list[params[0]]->find_client(params[2])->get_nickname + " as an operator\r\n";
+			send(this->socket, msg.c_str(), msg.size(), 0);
+			sendtochannel(channel_list[params[0]], msg);
 			if (l != std::string::npos) {
 
 				(sign[0] == '-') ? channel_list[params[0]]->limitOnly(false) : channel_list[params[0]]->limitOnly(true);
@@ -314,7 +325,7 @@ int Client::mode(std::vector<std::string> params, std::map<std::string, Channel*
 		else if (l < o) {
 
 			(sign[0] == '-') ? channel_list[params[0]]->limitOnly(false) : channel_list[params[0]]->limitOnly(true);
-			channel_list[params[0]]->setLimit(params[3], this->socket);
+			channel_list[params[0]]->setLimit(params[2], this->socket);
 			if (o != std::string::npos)
 				channel_list[params[0]]->getOpList().push_back(channel_list[params[0]]->find_client(params[3]));
 		}
@@ -403,7 +414,7 @@ int Client::privmsg(std::vector<std::string> params, std::map<std::string, Chann
 	std::string name = params[0];
 	std::string message = params[1];
 	
-	if (name.empty() || message.empty()) {
+	if (name.empty() || message.empty() || params.size() > 2 || message[0] != ':') {
 
 		msg = "Invalid arguments !\r\n";
 		send(this->socket, msg.c_str(), msg.size(), 0);
@@ -417,7 +428,7 @@ int Client::privmsg(std::vector<std::string> params, std::map<std::string, Chann
 			send(this->socket, message.c_str(), message.size(), 0);
 			return 0;
 		}
-		message = ":" + this->nickname + " PRIVMSG " + name + " :" + message + "\r\n";
+		message = ":" + this->nickname + " PRIVMSG " + name + message + "\r\n";
 		sendtochannel(channel_list[name], message);
 	}
 	if (name[0] != '#' && name[0] != '&') {
@@ -452,10 +463,16 @@ int Client::sendtochannel(Channel *channel, std::string message)
 
 bool	isEven(std::vector<std::string> params) {
 
-	for (std::vector<std::string>::const_iterator it = liste.begin(); it != liste.end(); ++it) {
-        if (*it == recherche) {
-            return true; // La chaîne existe dans le vecteur
-        }
+	for (size_t i = 0; i < params.size() && (params[i][0] == '#' || params[i][0] == '&'); i++) {
+
+		for (size_t j = 0; j < params.size() && (params[j][0] == '#' || params[j][0] == '&'); j++) {
+
+			if (i == j)
+				j++;
+			std::cout << params[i] << " compared to " << params[j] << std::endl;
+			if (params[i] == params[j] && (params[i][0] == '#' || params[i][0] == '&') && (params[j][0] == '#' || params[j][0] == '&'))
+            	return true;
+		}
     }
     return false;
 }
